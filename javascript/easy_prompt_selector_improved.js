@@ -278,6 +278,7 @@ class EasyPromptSelector {
   changeVisibility(node, visible) {
     if (node !== null) {
       node.style.display = visible ? 'grid' : 'none';
+      this.updateSelectedTags(node)
     }
   }
 
