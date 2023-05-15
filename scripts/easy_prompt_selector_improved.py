@@ -5,7 +5,8 @@ import yaml
 import gradio as gr
 
 import modules.scripts as scripts
-from modules.scripts import AlwaysVisible, basedir, shared
+from modules.scripts import AlwaysVisible, basedir
+from modules import shared
 from scripts.setup import write_filename_list
 
 FILE_DIR = Path().absolute()
@@ -89,7 +90,7 @@ class Script(scripts.Script):
         return AlwaysVisible
 
     def ui(self, is_img2img):
-        reload_button = gr.Button('🔄', variant='secondary', elem_id='easy_prompt_selector_reload_button')
+        reload_button = gr.Button('🔄', variant='secondary', elem_id='easy_prompt_selector_improved_reload_button')
         reload_button.style(size='sm')
 
         def reload():

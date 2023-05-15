@@ -10,34 +10,39 @@ class EPSElementBuilder {
       `gr-button-${color}`,
       // gradio 3.22
       size,
-      color
+      color,
+      'prompt'
     )
     button.textContent = text
 
     return button
   }
 
+  static category(depth, key) {
+    const category = document.createElement('div')
+    const title = document.createElement('div')
+    title.textContent = key
+    title.classList.add('title', `depth-${depth}`)
+    category.classList.add('category', `depth-${depth}`)
+    category.appendChild(title)
+    return category
+  }
+
+  static tagList(depth) {
+    const categoryList = document.createElement('div')
+    categoryList.classList.add('tag-list', `depth-${depth}`)
+    return categoryList
+  }
+
   static tagFields() {
     const fields = document.createElement('div')
-    fields.style.display = 'flex'
-    fields.style.flexDirection = 'row'
-    fields.style.flexWrap = 'wrap'
-    fields.style.minWidth = 'min(320px, 100%)'
-    fields.style.maxWidth = '100%'
-    fields.style.flex = '1 calc(50% - 20px)'
-    fields.style.borderWidth = '1px'
-    fields.style.borderColor = 'var(--block-border-color,#374151)'
-    fields.style.borderRadius = 'var(--block-radius,8px)'
-    fields.style.padding = '8px'
-    fields.style.height = 'fit-content'
-
     return fields
   }
 
   // Elements
   static openButton({ onClick }) {
-    const button = EPSElementBuilder.baseButton('🔯タグを選択', { size: 'sm', color: 'secondary' })
-    button.classList.add('easy_prompt_selector_button')
+    const button = EPSElementBuilder.baseButton('Tags', { size: 'sm', color: 'secondary' })
+    button.classList.add('easy_prompt_selector_improved_button')
     button.addEventListener('click', onClick)
 
     return button
@@ -52,11 +57,12 @@ class EPSElementBuilder {
     return container
   }
 
-  static tagButton({ title, onClick, onRightClick, color = 'primary' }) {
+  static tagButton({ title, value, onClick, onRightClick, color = 'primary' }) {
     const button = EPSElementBuilder.baseButton(title, { color })
     button.style.height = '2rem'
     button.style.flexGrow = '0'
-    button.style.margin = '2px'
+    button.style.margin = '4px'
+    button.id = value
 
     button.addEventListener('click', onClick)
     button.addEventListener('contextmenu', onRightClick)
@@ -79,7 +85,7 @@ class EPSElementBuilder {
     select.style.margin = '2px'
     select.addEventListener('change', (event) => { onChange(event.target.value) })
 
-    const none = ['なし']
+    const none = ['None']
     none.concat(options).forEach((key) => {
       const option = document.createElement('option')
       option.value = key
@@ -88,27 +94,6 @@ class EPSElementBuilder {
     })
 
     return select
-  }
-
-  static checkbox(text, { onChange }) {
-    const label = document.createElement('label')
-    label.style.display = 'flex'
-    label.style.alignItems = 'center'
-
-    const checkbox = gradioApp().querySelector('input[type=checkbox]').cloneNode()
-    checkbox.checked = false
-    checkbox.addEventListener('change', (event) => {
-       onChange(event.target.checked)
-    })
-
-    const span = document.createElement('span')
-    span.style.marginLeft = 'var(--size-2, 8px)'
-    span.textContent = text
-
-    label.appendChild(checkbox)
-    label.appendChild(span)
-
-    return label
   }
 }
 
@@ -179,11 +164,7 @@ class EasyPromptSelector {
     row.appendChild(dropDown)
 
     const settings = document.createElement('div')
-    const checkbox = EPSElementBuilder.checkbox('ネガティブプロンプトに入力', {
-      onChange: (checked) => { this.toNegative = checked }
-    })
     settings.style.flex = '1'
-    settings.appendChild(checkbox)
 
     row.appendChild(settings)
 
@@ -222,8 +203,7 @@ class EasyPromptSelector {
       const fields = EPSElementBuilder.tagFields()
       fields.id = `easy-prompt-selector-container-${key}`
       fields.style.display = 'none'
-      fields.style.flexDirection = 'row'
-      fields.style.marginTop = '10px'
+      fields.classList.add('easy-prompt-selector-container')
 
       this.renderTagButtons(values, key).forEach((group) => {
         fields.appendChild(group)
@@ -235,7 +215,22 @@ class EasyPromptSelector {
     return content
   }
 
-  renderTagButtons(tags, prefix = '') {
+  createField(key, depth) {
+    const content = document.createElement('div')
+    content.classList.add('fields', `depth-${depth}`)
+    content.textContent = key
+    content.style.flexDirection = 'column'
+    return content
+  }
+
+  createDiv(className, depth) {
+    const content = document.createElement('div')
+    content.classList.add(className, `depth-${depth}`)
+    return content
+  }
+
+  renderTagButtons(tags, prefix = '', depth = 0) {
+    // Buttons has depth is exactly 1
     if (Array.isArray(tags)) {
       return tags.map((tag) => this.renderTagButton(tag, tag, 'secondary'))
     } else {
@@ -243,21 +238,20 @@ class EasyPromptSelector {
         const values = tags[key]
         const randomKey = `${prefix}:${key}`
 
-        if (typeof values === 'string') { return this.renderTagButton(key, values, 'secondary') }
+        // Buttons has depth is exactly 1
+        if (typeof values === 'string') {
+          return this.renderTagButton(key, values, 'secondary')
+        }
 
-        const fields = EPSElementBuilder.tagFields()
-        fields.style.flexDirection = 'column'
-
-        fields.append(this.renderTagButton(key, `@${randomKey}@`))
-
-        const buttons = EPSElementBuilder.tagFields()
-        buttons.id = 'buttons'
-        fields.append(buttons)
-        this.renderTagButtons(values, randomKey).forEach((button) => {
-          buttons.appendChild(button)
+        const category = EPSElementBuilder.category(depth, key)
+        const categoryList = EPSElementBuilder.tagList(depth)      
+        category.appendChild(categoryList)
+       
+        this.renderTagButtons(values, randomKey, depth + 1).forEach((tagButton) => {
+          categoryList.appendChild(tagButton)
         })
 
-        return fields
+        return category
       })
     }
   }
@@ -265,15 +259,16 @@ class EasyPromptSelector {
   renderTagButton(title, value, color = 'primary') {
     return EPSElementBuilder.tagButton({
       title,
+      value,
       onClick: (e) => {
         e.preventDefault();
-
-        this.addTag(value, this.toNegative || e.metaKey || e.ctrlKey)
+        
+        this.addTag(value, false || e.metaKey || e.ctrlKey)
       },
       onRightClick: (e) => {
         e.preventDefault();
 
-        this.removeTag(value, this.toNegative || e.metaKey || e.ctrlKey)
+        this.addTag(value, true || e.metaKey || e.ctrlKey)
       },
       color
     })
@@ -281,35 +276,63 @@ class EasyPromptSelector {
 
   // Util
   changeVisibility(node, visible) {
-    node.style.display = visible ? 'flex' : 'none'
+    if (node !== null) {
+      node.style.display = visible ? 'grid' : 'none';
+    }
   }
 
+  // Change Selected Class
+  updateSelectedTags(node) {
+    const app = gradioApp()
+    const positive = new Set(app.getElementById('txt2img_prompt').querySelector('textarea').value.split(',').map((prompt) => prompt.trim()).filter((prompt) => prompt.length !== 0))
+    const negative = new Set(app.getElementById('txt2img_neg_prompt').querySelector('textarea').value.split(',').map((prompt) => prompt.trim()).filter((prompt) => prompt.length !== 0))
+    const buttons = node.querySelectorAll('button.prompt')
+    
+    buttons.forEach((button) => {
+      const tags = Array.from(new Set(button.id.split(',').map((prompt) => prompt.trim()).filter((prompt) => prompt.length !== 0)))
+      if (tags.every((tag) => positive.has(tag)) && tags.every((tag) => negative.has(tag))) {
+        button.classList.add('selected', 'positive', 'negative')
+        return
+      }
+      if (tags.every((tag) => positive.has(tag))) {
+        button.classList.add('selected', 'positive')
+        return
+      }
+      if (tags.every((tag) => negative.has(tag))) {
+        button.classList.add('selected', 'negative')
+        return
+      }
+    })
+  }
+
+  // Add Tag
   addTag(tag, toNegative = false) {
     const id = toNegative ? 'txt2img_neg_prompt' : 'txt2img_prompt'
     const textarea = gradioApp().getElementById(id).querySelector('textarea')
+    const element = gradioApp().getElementById(tag)
+    
+    // Tags
+    const tags = new Set(tag.split(',').map((tag) => tag.trim()).filter((tag) => tag.length !== 0))
+    // Prompts
+    const prompts = new Set(textarea.value.split(',').map((prompt) => prompt.trim()).filter((prompt) => prompt.length !== 0))
 
-    if (textarea.value.trim() === '') {
-      textarea.value = tag
-    } else if (textarea.value.trim().endsWith(',')) {
-      textarea.value += ' ' + tag
+    if (Array.from(tags).every((tag) => prompts.has(tag))) {
+      // Already selected negative and positive
+      if (element.classList.contains('negative') && element.classList.contains('positive')) {
+        element.classList.remove(toNegative ? 'negative' : 'positive')
+      } else {
+        element.classList.remove('selected', 'negative', 'positive')
+      }
+      textarea.value = Array.from(new Set([...prompts].filter((prompt) => !tags.has(prompt)))).join(', ') + ','
     } else {
-      textarea.value += ', ' + tag
+      // Already selected
+      if (!element.classList.contains('selected')) {
+        element.classList.add('selected')
+      }
+      element.classList.add(toNegative ? 'negative' : 'positive')
+      textarea.value = Array.from(new Set([...prompts, ...tags])).join(', ') + ','
     }
-
-    updateInput(textarea)
-  }
-
-  removeTag(tag, toNegative = false) {
-    const id = toNegative ? 'txt2img_neg_prompt' : 'txt2img_prompt'
-    const textarea = gradioApp().getElementById(id).querySelector('textarea')
-
-    if (textarea.value.trimStart().startsWith(tag)) {
-      const matched = textarea.value.match(new RegExp(`${tag.replace(/[-\/\\^$*+?.()|\[\]{}]/g, '\\$&') },*`))
-      textarea.value = textarea.value.replace(matched[0], '').trimStart()
-    } else {
-      textarea.value = textarea.value.replace(`, ${tag}`, '')
-    }
-
+    
     updateInput(textarea)
   }
 }
@@ -325,14 +348,17 @@ onUiLoaded(async () => {
     }
   })
 
-  const reloadButton = gradioApp().getElementById('easy_prompt_selector_reload_button')
+  const reloadButton = gradioApp().getElementById('easy_prompt_selector_improved_reload_button')
+  // Fix button width
+  reloadButton.classList.add('lg', 'gradio-button', 'tool')
+  reloadButton.classList.remove('sm')
   reloadButton.addEventListener('click', async () => {
     await easyPromptSelector.init()
   })
 
   const txt2imgActionColumn = gradioApp().getElementById('txt2img_actions_column')
   const container = document.createElement('div')
-  container.classList.add('easy_prompt_selector_container')
+  container.classList.add('easy_prompt_selector_improved_container')
   container.appendChild(button)
   container.appendChild(reloadButton)
 
